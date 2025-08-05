@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Login - Tu Voz Local</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100vh;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      perspective: 1000px;
+    }
+
+    /* Contenedor tarjeta con perspectiva 3D */
+    .card {
+      width: 320px;
+      height: 320px;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+      box-sizing: border-box;
+    }
+
+    /* Cuando se agregue la clase flipped, gira 180 grados */
+    .card.flipped {
+      transform: rotateY(180deg);
+    }
+
+    /* Frente y dorso de la tarjeta */
+    .card .front, 
+    .card .back {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      background-color: #1e1e1e;
+      box-sizing: border-box;
+      padding: 30px 25px;
+      backface-visibility: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Frente (formulario login) */
+    .card .front {
+      z-index: 2;
+    }
+
+    /* Dorso (opciones) */
+    .card .back {
+      transform: rotateY(180deg);
+      gap: 20px;
+    }
+
+    /* Inputs */
+    input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 16px;
+      border: none;
+      border-radius: 6px;
+      background-color: #2a2a2a;
+      color: white;
+      font-size: 1em;
+      box-sizing: border-box;
+    }
+
+    /* Botones */
+    button {
+      width: 100%;
+      padding: 12px;
+      background-color: #6200ee;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-size: 1.1em;
+      transition: background-color 0.3s ease;
+    }
+    button:hover {
+      background-color: #3700b3;
+    }
+
+    /* Botones en dorso */
+    .card .back button {
+      width: 140px;
+      margin: 0 10px;
+    }
+
+    /* Título */
+    h2, h3 {
+      margin: 0 0 24px 0;
+      font-weight: 600;
+    }
+
+    /* Contenedor de botones dorso para alinearlos */
+    .btn-group {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <!-- Frente: Formulario Login -->
+    <div class="front">
+      <h2>Iniciar sesión</h2>
+      <input type="email" id="email" placeholder="Correo electrónico" autocomplete="username" />
+      <input type="password" id="password" placeholder="Contraseña" autocomplete="current-password" />
+      <button id="btnEntrar">Entrar</button>
+    </div>
+
+    <!-- Dorso: Opciones -->
+    <div class="back">
+      <h3>¿A dónde querés ir?</h3>
+      <div class="btn-group">
+        <button id="btnMapa">Mapa de Carga</button>
+        <button id="btnTablero">Tablero</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDMSNLsiKPrAcTIQ5ctx05eE18Rd71ueSI",
+      authDomain: "tu-voz-local.firebaseapp.com",
+      projectId: "tu-voz-local",
+      storageBucket: "tu-voz-local.appspot.com",
+      messagingSenderId: "179369444666",
+      appId: "1:179369444666:web:5dbe5d5b55c446a3323c03"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const card = document.getElementById("card");
+    const btnEntrar = document.getElementById("btnEntrar");
+    const btnMapa = document.getElementById("btnMapa");
+    const btnTablero = document.getElementById("btnTablero");
+
+    btnEntrar.addEventListener("click", async () => {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+
+      if (!email || !password) {
+        alert("Por favor, completá todos los campos.");
+        return;
+      }
+
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+        // Login correcto: girar la tarjeta
+        card.classList.add("flipped");
+      } catch (error) {
+        alert("Usuario No Autorizado");
+      }
+    });
+
+    btnMapa.addEventListener("click", () => {
+      window.location.href = "/Frontend/mapa.html";
+    });
+
+    btnTablero.addEventListener("click", () => {
+      window.location.href = "/Frontend/Tablero.html";
+    });
+  </script>
+</body>
+</html>

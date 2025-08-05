@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Tu Voz Local</title>
+
+  <!-- CSS de Leaflet y FontAwesome -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background-color: #121212;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    #map {
+      height: 100vh;
+      width: 100%;
+      margin-left: 10px; /* opcional */
+    }
+
+    .leaflet-top.leaflet-right {
+      z-index: 1001 !important;
+      top: 10px;
+      right: 10px;
+    }
+
+    .custom-marker {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 280px;
+      height: 90%;
+      background-color: #1e1e1e;
+      padding: 30px;
+      box-shadow: 8px 0 5px rgba(0,0,0,0.5);
+      z-index: 1000;
+      overflow-y: auto;
+    }
+
+    .sidebar h2 {
+      margin-top: 0;
+      font-size: 1.4em;
+      color: #fff;
+    }
+
+    .sidebar input,
+    .sidebar textarea,
+    .sidebar select {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 10px;
+      border: none;
+      border-radius: 6px;
+      font-size: 1em;
+      background-color: #2a2a2a;
+      color: #fff;
+    }
+
+    .sidebar button {
+      width: 100%;
+      padding: 10px;
+      font-size: 1em;
+      background-color: #6200ee;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+    }
+
+    .search-bar {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
+      width: 300px;
+    }
+
+    .leaflet-popup-content table {
+      color: #000;
+      font-size: 0.9em;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+
+  <form id="reclamoForm" class="sidebar">
+    <h2>Nuevo Reclamo</h2>
+    <input type="text" id="nombre" placeholder="Nombre y apellido" required />
+    <input type="tel" id="contacto" placeholder="Número de contacto" required />
+    <select id="estado" multiple size="5" required>
+      <option>Reclamo Ingresado</option>
+      <option>Subido APP Ciudadana</option>
+      <option>ART 111</option>
+      <option>Solucionado</option>
+      <option>Sin Solución</option>
+    </select>    
+    <select id="tipoReclamo" required>
+      <option disabled selected>Tipo de reclamo</option>
+      <option>Bacheo</option>
+      <option>Zanjeo</option>
+      <option>Desmalezamiento</option>
+      <option>Poda y Escamonda de árboles</option>
+      <option>Eliminación de basurales, retiro de escombros, colocación de volquetes y áreas de limpieza en general</option>
+      <option>Reposición y mantenimiento de luminarias</option>
+      <option>Desobstrucción y reparación de desagües y bocas de tormenta</option>
+      <option>Reparación de veredas</option>
+      <option>Retiro de vehículos abandonados en la vía pública</option>
+      <option>Todo otro reclamo referido a la eficiencia en la infraestructura o prestación de servicios públicos</option>
+    </select>
+    <textarea id="descripcion" placeholder="Descripción del reclamo" required></textarea>
+    <input type="text" id="coordenadas" placeholder="Coordenadas (click en el mapa)" readonly required />
+    <label for="seccional">Seccional (1 a 14):</label>
+    <input type="number" id="seccional" name="seccional" min="1" max="14" required />
+    <label for="barrio">Barrio:</label>
+    <select id="barrio" name="barrio" required>
+      <option value="" disabled selected>Selecciona un barrio</option>
+    </select>
+    <button type="submit">Agregar Reclamo</button>
+  </form>
+
+  <div id="map"></div>
+  <div class="search-bar" id="search"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDMSNLsiKPrAcTIQ5ctx05eE18Rd71ueSI",
+      authDomain: "tu-voz-local.firebaseapp.com",
+      projectId: "tu-voz-local",
+      storageBucket: "tu-voz-local.appspot.com",
+      messagingSenderId: "179369444666",
+      appId: "1:179369444666:web:5dbe5d5b55c446a3323c03"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const map = L.map('map', { zoomControl: false }).setView([-31.4, -64.18], 13);
+    let marcadorTemp = null;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marcadores = [];
+
+    function crearIcono(color) {
+      return L.divIcon({
+        className: 'custom-marker',
+        html: `<i class="fas fa-map-marker-alt" style="color:${color}; font-size: 28px;"></i>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28],
+        popupAnchor: [0, -28]
+      });
+    }
+
+    function actualizarVisualizacion() {
+      marcadores.forEach(m => m.addTo(map));    
+    }
+
+    const barriosCordoba = [
+      "Alta Córdoba","Alberdi","Argüello","Centro","Cerro de las Rosas","Cofico","El Panal",
+      "General Paz","Guadalupe","Güemes","Jardín Espinosa","Jardín San Miguel","Jerónimo Luis de Cabrera",
+      "Juniors","La France","La Florida","La Salud","Las Palmas","Los Boulevares","Lomas de San Martín",
+      "Nueva Córdoba","Parque Chacabuco","Pueyrredón","San Vicente","San Martín","Villa Belgrano",
+      "Villa Cabrera","Villa El Libertador","Villa Los Remedios","Villa Parque Síquiman","Villa Urquiza",
+      "Zanjon del Cura"
+    ];
+
+    const selectBarrio = document.getElementById("barrio");
+    barriosCordoba.forEach(barrio => {
+      const option = document.createElement("option");
+      option.value = barrio;
+      option.textContent = barrio;
+      selectBarrio.appendChild(option);
+    });
+
+    const reclamosCol = collection(db, "reclamos");
+
+    function actualizarDatos(snapshot) {
+      marcadores.forEach(m => map.removeLayer(m));
+      marcadores = [];
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+
+        if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+          let color = "dodgerblue";
+
+          const estadoStr = Array.isArray(data.estado) ? data.estado.join(", ") : data.estado;
+          const estadoMinus = estadoStr ? estadoStr.toLowerCase() : "";
+
+          if (estadoMinus.includes("solucionado")) color = "green";
+          else if (estadoMinus.includes("sin solución")) color = "red";
+          else if (estadoMinus.includes("subido app ciudadana")) color = "orange";
+          else if (estadoMinus.includes("art 111")) color = "yellow";
+
+          const icono = crearIcono(color);
+
+          const popupHtml = `
+            <div style="background:#1e1e1e; color:white; padding:10px; border-radius:8px; max-width:250px;">
+              <h3 style="color:${color}; margin:0 0 5px 0;">📍 ${data.tipo || "Reclamo"}</h3>
+              <p style="margin:0;"><strong>Nombre:</strong> ${data.nombreApellido || "-"}</p>
+              <p style="margin:0;"><strong>Contacto:</strong> ${data.numeroContacto || "-"}</p>
+              <p style="margin:0;"><strong>Estado:</strong> ${estadoStr || "-"}</p>
+              <p style="margin:0;"><strong>Seccional:</strong> ${data.seccional || "-"}</p>
+              <p style="margin:0;"><strong>Barrio:</strong> ${data.barrio || "-"}</p>
+              <p style="margin:0;"><strong>Descripción:</strong> ${data.descripcion || "-"}</p>
+            </div>
+          `;
+
+          const marker = L.marker([data.lat, data.lng], { icon: icono }).bindPopup(popupHtml);
+          marker.addTo(map);
+          marcadores.push(marker);
+
+        }
+      });
+    }
+
+    map.on('click', function(e) {
+      const estadoSelect = document.getElementById("estado");
+      const estado = Array.from(estadoSelect.selectedOptions).map(opt => opt.value);
+
+      const lat = e.latlng.lat;
+      const lng = e.latlng.lng;
+
+      const color = estado.includes("Solucionado") ? "green" :
+                    estado.includes("Sin Solución") ? "red" :
+                    estado.includes("Subido APP Ciudadana") ? "orange" :
+                    estado.includes("ART 111") ? "yellow" : "dodgerblue";
+
+      if (marcadorTemp) {
+        map.removeLayer(marcadorTemp);
+      }
+
+      const icono = crearIcono(color);
+      marcadorTemp = L.marker([lat, lng], { icon: icono }).addTo(map);
+      document.getElementById("coordenadas").value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    });
+
+    document.getElementById("reclamoForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const nombre = document.getElementById("nombre").value.trim();
+      const contacto = document.getElementById("contacto").value.trim();
+      const tipo = document.getElementById("tipoReclamo").value;
+      const estadoSelect = document.getElementById("estado");
+      const estado = Array.from(estadoSelect.selectedOptions).map(opt => opt.value);
+      const descripcion = document.getElementById("descripcion").value.trim();
+      const coords = document.getElementById("coordenadas").value;
+      const seccional = document.getElementById("seccional").value.trim();
+      const barrio = document.getElementById("barrio").value;
+
+      if (!nombre || !contacto || !tipo || estado.length === 0 || !descripcion || !coords || !seccional || !barrio) {
+        alert("Por favor completa todos los campos.");
+        return;
+      }
+
+      const [lat, lng] = coords.split(",").map(c => parseFloat(c.trim()));
+
+      const color = estado.includes("Solucionado") ? "green" :
+                    estado.includes("Sin Solución") ? "red" :
+                    estado.includes("Subido APP Ciudadana") ? "orange" :
+                    estado.includes("ART 111") ? "yellow" : "dodgerblue";
+
+      const icono = crearIcono(color);
+      const estadoTexto = estado.join(", ");
+
+      const popupHtml = `
+        <div style="background:#1e1e1e; color:white; padding:10px; border-radius:8px; max-width:250px;">
+          <h3 style="color:${color}; margin:0 0 5px 0;">📍 ${tipo}</h3>
+          <p style="margin:0;"><strong>Nombre:</strong> ${nombre}</p>
+          <p style="margin:0;"><strong>Contacto:</strong> ${contacto}</p>
+          <p style="margin:0;"><strong>Estado:</strong> ${estadoTexto}</p>
+          <p style="margin:0;"><strong>Descripción:</strong> ${descripcion}</p>
+        </div>
+      `;
+
+      L.marker([lat, lng], { icon: icono }).addTo(map).bindPopup(popupHtml);
+
+      try {
+        await addDoc(collection(db, "reclamos"), {
+          nombreApellido: nombre,
+          numeroContacto: contacto,
+          tipo,
+          estado,
+          descripcion,
+          lat,
+          lng,
+          seccional,
+          barrio,
+          fecha: serverTimestamp()
+        });
+
+        alert("Reclamo guardado correctamente");
+        e.target.reset();
+        document.getElementById("coordenadas").value = "";
+        if (marcadorTemp) {
+          map.removeLayer(marcadorTemp);
+          marcadorTemp = null;
+        }
+      } catch (error) {
+        console.error("Error al guardar reclamo:", error);
+        alert("Error al guardar reclamo, revisa la consola");
+      }
+    });
+
+    onSnapshot(reclamosCol, actualizarDatos);
+    map.on('zoomend', actualizarVisualizacion);
+  </script>
+</body>
+</html>

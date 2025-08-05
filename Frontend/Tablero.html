@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tablero de Reclamos con edición de URL en columna Archivo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #e0e0e0;
+      margin: 0; padding: 20px;
+    }
+    h1 {
+      text-align: center; color: #fff; margin-bottom: 30px;
+    }
+    table {
+      width: 100%; border-collapse: collapse;
+      background-color: #1e1e1e;
+      border-radius: 10px; overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+      max-width: 100%;
+      overflow-x: auto;
+    }
+    th, td {
+      padding: 12px 10px; text-align: left; vertical-align: middle;
+    }
+    th {
+      background-color: #272727; color: #fff;
+      position: sticky; top: 0; z-index: 2;
+    }
+    td {
+      border-bottom: 1px solid #2e2e2e;
+      position: relative;
+    }
+    tr:hover {
+      background-color: #2c2c2c;
+    }
+    input.filter-input {
+      width: 100%; padding: 6px 8px; margin-top: 5px;
+      background-color: #333; border: 1px solid #555;
+      color: #e0e0e0; border-radius: 4px;
+    }
+    input.filter-input::placeholder { color: #aaa; }
+
+    button.btn-eliminar {
+      background: #e53935; color: white;
+      border: none; border-radius: 4px;
+      padding: 5px 8px; cursor: pointer;
+      font-weight: bold; transition: background 0.3s ease;
+    }
+    button.btn-eliminar:hover { background: #b32b25; }
+
+    select.select-estado {
+      padding: 4px 6px; border-radius: 4px;
+      border: none; background-color: #444;
+      color: #fff; cursor: pointer;
+    }
+
+    a.archivo-link {
+      font-size: 20px;
+      color: #4fc3f7;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    a.archivo-link:hover {
+      color: #82cfff;
+    }
+
+    .archivo-input-container {
+      display: none;
+      position: absolute;
+      top: 35px;
+      left: 0;
+      background: #222;
+      padding: 5px;
+      border-radius: 6px;
+      box-shadow: 0 0 10px #000;
+      z-index: 10;
+      width: 250px;
+    }
+    .archivo-input-container input {
+      width: 100%;
+      padding: 6px;
+      border-radius: 4px;
+      border: none;
+      background-color: #333;
+      color: #eee;
+    }
+    .archivo-input-container button {
+      margin-top: 6px;
+      background: #4fc3f7;
+      border: none;
+      padding: 6px 10px;
+      color: #121212;
+      font-weight: bold;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+      float: right;
+    }
+    .archivo-input-container button:hover {
+      background-color: #82cfff;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      table, thead, tbody, th, td, tr {
+        display: block;
+      }
+      thead tr {
+        display: none;
+      }
+      tr {
+        margin-bottom: 15px;
+        background-color: #1e1e1e;
+        padding: 10px;
+        border-radius: 8px;
+      }
+      td {
+        border: none;
+        padding: 8px 10px;
+        text-align: right;
+        position: relative;
+      }
+      td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 10px;
+        top: 8px;
+        font-weight: bold;
+        color: #ccc;
+        text-align: left;
+      }
+      .archivo-input-container {
+        position: static;
+        box-shadow: none;
+        width: 100%;
+        margin-top: 5px;
+      }
+    }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <h1>Tablero de Reclamos</h1>
+
+  <table id="reclamosTable">
+    <thead>
+      <tr>
+        <th>Nombre y Apellido <br><input class="filter-input" placeholder="Filtrar..." data-col="0"></th>
+        <th>📞 Contacto <br><input class="filter-input" placeholder="Filtrar..." data-col="1"></th>
+        <th>📝 Tipo <br><input class="filter-input" placeholder="Filtrar..." data-col="2"></th>
+        <th>⚙️ Estado <br><input class="filter-input" placeholder="Filtrar..." data-col="3"></th>
+        <th>📍 Lat, Lng <br><input class="filter-input" placeholder="Filtrar..." data-col="4"></th>
+        <th>🗓️ Fecha <br><input class="filter-input" placeholder="Filtrar..." data-col="5"></th>
+        <th>🗒️ Descripción <br><input class="filter-input" placeholder="Filtrar..." data-col="6"></th>
+        <th>Archivo</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tablaBody"></tbody>
+  </table>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDMSNLsiKPrAcTIQ5ctx05eE18Rd71ueSI",
+    authDomain: "tu-voz-local.firebaseapp.com",
+    projectId: "tu-voz-local",
+    storageBucket: "tu-voz-local.appspot.com",
+    messagingSenderId: "179369444666",
+    appId: "1:179369444666:web:5dbe5d5b55c446a3323c03",
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const tablaBody = document.getElementById("tablaBody");
+
+  function crearFila(doc, data) {
+    const estadoStr = Array.isArray(data.estado) ? data.estado.join(", ") : (data.estado || "");
+    let fechaStr = "";
+    if (data.fecha && data.fecha.toDate) {
+      fechaStr = data.fecha.toDate().toLocaleDateString() + " " + data.fecha.toDate().toLocaleTimeString();
+    }
+
+    const tr = document.createElement("tr");
+
+    tr.innerHTML = `
+      <td data-label="Nombre y Apellido">${data.nombreApellido || ""}</td>
+      <td data-label="Contacto">${data.numeroContacto || ""}</td>
+      <td data-label="Tipo">${data.tipo || ""}</td>
+      <td data-label="Estado">
+        <select class="select-estado" data-id="${doc.id}" title="Cambiar estado">
+          <option value="Reclamo Ingresado" ${estadoStr.includes("Reclamo Ingresado") ? "selected" : ""}>Reclamo Ingresado</option>
+          <option value="Subido APP Ciudadana" ${estadoStr.includes("Subido APP Ciudadana") ? "selected" : ""}>Subido APP Ciudadana</option>
+          <option value="ART 111" ${estadoStr.includes("ART 111") ? "selected" : ""}>ART 111</option>
+          <option value="Solucionado" ${estadoStr.includes("Solucionado") ? "selected" : ""}>Solucionado</option>
+          <option value="Sin Solución" ${estadoStr.includes("Sin Solución") ? "selected" : ""}>Sin Solución</option>
+        </select>
+      </td>
+      <td data-label="Lat, Lng">${data.lat ? data.lat.toFixed(5) : ""}, ${data.lng ? data.lng.toFixed(5) : ""}</td>
+      <td data-label="Fecha">${fechaStr}</td>
+      <td data-label="Descripción">${data.descripcion || ""}</td>
+      <td data-label="Archivo" style="position:relative;">
+        ${
+          data.archivoLink
+            ? `<a href="${data.archivoLink}" target="_blank" rel="noopener noreferrer" class="archivo-link" title="Abrir archivo 📄">📄</a>`
+            : `<a href="#" class="archivo-link editar-archivo" title="Agregar/Editar link">📎</a>
+               <div class="archivo-input-container">
+                 <input type="url" class="input-archivo-url" placeholder="Pega la URL aquí" />
+                 <button class="btn-guardar-url">Guardar</button>
+               </div>`
+        }
+      </td>
+      <td data-label="Acciones">
+        <button class="btn-eliminar" data-id="${doc.id}" title="Eliminar reclamo">🗑️</button>
+      </td>
+    `;
+    return tr;
+  }
+
+  // Escuchar cambios en reclamos
+  db.collection("reclamos").orderBy("fecha", "desc").onSnapshot((querySnapshot) => {
+    tablaBody.innerHTML = "";
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      tablaBody.appendChild(crearFila(doc, data));
+    });
+  });
+
+  // Filtros por columnas
+  const filtros = document.querySelectorAll(".filter-input");
+  filtros.forEach(input => {
+    input.addEventListener("input", () => {
+      const col = parseInt(input.dataset.col);
+      const filtro = input.value.toLowerCase();
+      const filas = tablaBody.querySelectorAll("tr");
+      filas.forEach(fila => {
+        const celda = fila.children[col].textContent.toLowerCase();
+        fila.style.display = celda.includes(filtro) ? "" : "none";
+      });
+    });
+  });
+
+  // Delegación de eventos en tablaBody
+  tablaBody.addEventListener("click", async (e) => {
+    const target = e.target;
+
+    // Eliminar reclamo
+    if (target.classList.contains("btn-eliminar")) {
+      const id = target.dataset.id;
+      if (confirm("¿Querés eliminar este reclamo?")) {
+        try {
+          await db.collection("reclamos").doc(id).delete();
+          alert("Reclamo eliminado");
+        } catch (error) {
+          console.error("Error eliminando reclamo:", error);
+          alert("Error al eliminar");
+        }
+      }
+      return;
+    }
+
+    // Mostrar input para agregar/editar URL
+    if (target.classList.contains("editar-archivo")) {
+      e.preventDefault();
+      const td = target.closest("td");
+      const container = td.querySelector(".archivo-input-container");
+      if (container.style.display === "block") {
+        container.style.display = "none";
+      } else {
+        // Ocultar todos los otros inputs abiertos
+        document.querySelectorAll(".archivo-input-container").forEach(div => div.style.display = "none");
+        container.style.display = "block";
+
+        // Si ya hay URL, cargarla en el input
+        const fila = td.parentElement;
+        const docId = fila.querySelector(".btn-eliminar").dataset.id;
+        const doc = await db.collection("reclamos").doc(docId).get();
+        const data = doc.data();
+        const inputUrl = container.querySelector(".input-archivo-url");
+        inputUrl.value = data.archivoLink || "";
+        inputUrl.focus();
+      }
+      return;
+    }
+
+    // Guardar URL
+    if (target.classList.contains("btn-guardar-url")) {
+      e.preventDefault();
+      const container = target.closest(".archivo-input-container");
+      const inputUrl = container.querySelector(".input-archivo-url");
+      const url = inputUrl.value.trim();
+      const td = container.closest("td");
+      const fila = td.parentElement;
+      const docId = fila.querySelector(".btn-eliminar").dataset.id;
+
+      // Validar URL simple
+      if (url && !/^https?:\/\/.+/.test(url)) {
+        alert("Por favor ingresa una URL válida que comience con http:// o https://");
+        inputUrl.focus();
+        return;
+      }
+
+      try {
+        await db.collection("reclamos").doc(docId).update({
+          archivoLink: url || null
+        });
+        alert("URL de archivo guardada correctamente");
+        container.style.display = "none";
+      } catch (error) {
+        console.error("Error guardando URL:", error);
+        alert("Error al guardar URL");
+      }
+    }
+  });
+
+  // Cambiar estado
+  tablaBody.addEventListener("change", async (e) => {
+    if (e.target.classList.contains("select-estado")) {
+      const id = e.target.dataset.id;
+      const nuevoEstado = [e.target.value];
+      try {
+        await db.collection("reclamos").doc(id).update({ estado: nuevoEstado });
+        alert("Estado actualizado");
+      } catch (error) {
+        console.error("Error actualizando estado:", error);
+        alert("Error al actualizar");
+      }
+    }
+  });
+</script>
+</body>
+</html>
