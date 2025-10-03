@@ -26,7 +26,7 @@ Cada reclamo se clasifica por estado y se representa con un color diferente para
 ## Instalación
 1. Clonar el repositorio:
    ```bash
-   git clone https://github.com/tuusuario/tu-voz-local.git
+   git clone https://github.com/Antunexx/tu-voz-local.git
 
    Configurar Firebase con tus credenciales.
 
